@@ -359,6 +359,14 @@ and type to run your compiled software:
 make run PLUSARGS="c firmware=../../../sw/build/main.hex"
 ```
 
+or
+
+```
+make run-gui PLUSARGS="c firmware=../../../sw/build/main.hex"
+```
+
+to also open the graphical interface.
+
 You can also use vopt for HDL optimized compilation:
 
 ```
@@ -368,13 +376,21 @@ make questasim-sim-opt
 then go to
 
 ```
-cd ./build/openhwgroup.org_systems_core-v-mini-mcu_0/sim_opt-modelsim/
+cd ./build/openhwgroup.org_systems_core-v-mini-mcu_0/sim-modelsim/
 ```
 and
 
 ```
 make run RUN_OPT=1 PLUSARGS="c firmware=../../../sw/build/main.hex"
 ```
+
+or
+
+```
+make run-gui RUN_OPT=1 PLUSARGS="c firmware=../../../sw/build/main.hex"
+```
+
+to also open the graphical interface.
 
 You can also compile with the UPF power domain description as:
 
