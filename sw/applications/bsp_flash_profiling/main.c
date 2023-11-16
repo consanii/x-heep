@@ -90,7 +90,7 @@ int main(int argc, char *argv[]) {
 
         // Read and print timer value
         rv_timer_counter_read(&timer_0_1, hart_id, &timer_value);
-        printf("%u, ", timer_value);
+        printf("W%u, ", timer_value);
 
         // -------------------------------
 
@@ -111,15 +111,25 @@ int main(int argc, char *argv[]) {
 
         // Read and print timer value
         rv_timer_counter_read(&timer_0_1, hart_id, &timer_value);
-        printf("%u, ", timer_value);
+        printf("R%u, ", timer_value);
 
         // -------------------------------
 
         // Check if what we read is correct (i.e. flash_original == flash_data)
-        for (int j=0; j < i; j++) {
-            if(flash_data[j] != test_buffer[j]) {
-                printf("iteration %u - index@%x : %x != %x(ref)\n\r", i, j, flash_data[j], test_buffer[j]);
-                errors++;
+        uint32_t errors = 0;
+        for (int j=0; j < (i%4==0 ? i/4 : i/4+1); j++) {
+            if (j < i/4 ) {
+                if(flash_data[j] != test_buffer[j]) {
+                    printf("iteration %u - index@%u : %x != %x(ref)\n\r", i, j, flash_data[j], test_buffer[j]);
+                    errors++;
+                }
+            } else {
+                uint32_t last_bytes = 0;
+                memcpy(&last_bytes, &test_buffer[j], i % 4);
+                if (flash_data[j] != last_bytes) {
+                    printf("iteration %u - index@%u : %x != %x(ref)\n\r", i, j, flash_data[j], last_bytes);
+                    errors++;
+                }
             }
         }
         if (errors > 0) flag = 1;
@@ -127,7 +137,7 @@ int main(int argc, char *argv[]) {
     }
 
 
-    printf("Start profile routine - quad speed...\n\r");
+    printf("\nStart profile routine - quad speed...\n\r");
     for (int i = 1; i <= MAX_TEST_BUF_LEN; i++) {
         // Reset timer
         reset_timer(hart_id);
@@ -146,7 +156,7 @@ int main(int argc, char *argv[]) {
 
         // Read and print timer value
         rv_timer_counter_read(&timer_0_1, hart_id, &timer_value);
-        printf("%u, ", timer_value);
+        printf("W%u, ", timer_value);
 
         // -------------------------------
 
@@ -167,28 +177,37 @@ int main(int argc, char *argv[]) {
 
         // Read and print timer value
         rv_timer_counter_read(&timer_0_1, hart_id, &timer_value);
-        printf("%u, ", timer_value);
+        printf("R%u, ", timer_value);
 
         // -------------------------------
 
         // Check if what we read is correct (i.e. flash_original == flash_data)
-        for (int j=0; j < i; j++) {
-            if(flash_data[j] != test_buffer[j]) {
-                printf("iteration %u - index@%x : %x != %x(ref)\n\r", i, j, flash_data[j], test_buffer[j]);
-                errors++;
+        uint32_t errors = 0;
+        for (int j=0; j < (i%4==0 ? i/4 : i/4+1); j++) {
+            if (j < i/4 ) {
+                if(flash_data[j] != test_buffer[j]) {
+                    printf("iteration %u - index@%u : %x != %x(ref)\n\r", i, j, flash_data[j], test_buffer[j]);
+                    errors++;
+                }
+            } else {
+                uint32_t last_bytes = 0;
+                memcpy(&last_bytes, &test_buffer[j], i % 4);
+                if (flash_data[j] != last_bytes) {
+                    printf("iteration %u - index@%u : %x != %x(ref)\n\r", i, j, flash_data[j], last_bytes);
+                    errors++;
+                }
             }
         }
         if (errors > 0) flag = 1;
         errors = 0;
     }
 
-
     // Exit status based on errors found
-    if (flag == 0) {
-        printf("success!\n\r");
+    if (errors == 0) {
+        printf("\nsuccess!\n\r");
         return EXIT_SUCCESS;
     } else {
-        printf("failure!\n\r", errors);
+        printf("\nfailure, %d errors!\n\r", errors);
         return EXIT_FAILURE;
     }
 }
