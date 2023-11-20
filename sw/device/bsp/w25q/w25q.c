@@ -164,6 +164,19 @@ static void flash_write_enable(void);
 */
 static uint8_t sanity_checks(uint32_t addr, uint8_t *data, uint32_t length);
 
+/**
+ * @brief Return the minimum between two numbers.
+ * 
+ * The function uses signed integers in order to handle also negative numbers.
+ * 
+ * @param a first number.
+ * @param b second number.
+ * @return the minimum between a and b.
+*/
+static int32_t MIN(int32_t a, int32_t b) {
+    return (a < b) ? a : b;
+}
+
 
 /****************************************************************************/
 /**                                                                        **/
@@ -1004,15 +1017,20 @@ static uint8_t page_write_wrapper(uint32_t addr, uint8_t *data, uint32_t length,
     */
     if (addr % 256 != 0) {
         uint8_t tmp_len = 256 - (addr % 256);
+        tmp_len = MIN(tmp_len, length);
         page_write(addr, data_8bit, tmp_len, speed, dma_flag);
         addr += tmp_len;
         data_8bit += tmp_len;
         length -= tmp_len;
     }
 
+    // Check if we already finished
+    if ((int32_t)length == 0) return FLASH_OK;
+
     // I cannot program more than a page (256 Bytes) at a time.
     int flag = 1;
     while (flag) {
+        printf("length = %u\n", length);
         if (length > 256) {
             page_write(addr, data_8bit, 256, speed, dma_flag);
             addr += 256;
