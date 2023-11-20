@@ -444,7 +444,6 @@ uint8_t w25q128jw_read_standard_dma(uint32_t addr, void *data, uint32_t length) 
     spi_wait_for_ready(&spi);
 
     // Wait for DMA to finish transaction
-    printf("Waiting dma...\n");
     while(!dma_is_ready());
 
     return FLASH_OK;
@@ -1030,7 +1029,6 @@ static uint8_t page_write_wrapper(uint32_t addr, uint8_t *data, uint32_t length,
     // I cannot program more than a page (256 Bytes) at a time.
     int flag = 1;
     while (flag) {
-        printf("length = %u\n", length);
         if (length > 256) {
             page_write(addr, data_8bit, 256, speed, dma_flag);
             addr += 256;
