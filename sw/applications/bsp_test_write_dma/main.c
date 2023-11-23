@@ -82,23 +82,19 @@ int main(int argc, char *argv[]) {
     printf("BSP write test\n\r");
     error_codes_t status;
 
-    uint32_t *test_buffer = flash_original_32B;
-    uint32_t len = 32;
+    uint32_t *test_buffer = flash_original_768B;
+    uint32_t len = 768;
 
     // Init SPI host and SPI<->Flash bridge parameters 
     status = w25q128jw_init();
     if (status != FLASH_OK) return EXIT_FAILURE;
 
     // Write to flash memory at specific address
-    uint32_t test_zeros[8] = {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF};
-    status = w25q128jw_write_quad_dma(FLASH_ADDR, test_zeros, 32);
-    if (status != FLASH_OK) return EXIT_FAILURE;
-
-    status = w25q128jw_write_quad_dma(FLASH_ADDR, test_buffer, 30);
-    if (status != FLASH_OK) return EXIT_FAILURE;
+    // status = w25q128jw_write_standard_dma(FLASH_ADDR, test_buffer, len);
+    // if (status != FLASH_OK) return EXIT_FAILURE;
 
     // Read from flash memory at the same address
-    status = w25q128jw_read_standard(FLASH_ADDR, flash_data, len);
+    status = w25q128jw_read_standard_dma(FLASH_ADDR, flash_data, len);
     if (status != FLASH_OK) return EXIT_FAILURE;
 
 
@@ -106,7 +102,7 @@ int main(int argc, char *argv[]) {
     printf("flash vs ram...\n\r");
     uint32_t errors = 0;
     for (int i=0; i< ((len%4==0) ? len/4 : len/4 + 1); i++) {
-        printf("index@%x : %x == %x(ref)\n\r", i, flash_data[i], test_buffer[i]);
+        // printf("index@%x : %x == %x(ref)\n\r", i, flash_data[i], test_buffer[i]);
         if(flash_data[i] != test_buffer[i]) {
             printf("index@%x : %x != %x(ref)\n\r", i, flash_data[i], test_buffer[i]);
             errors++;

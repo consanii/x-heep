@@ -35,7 +35,7 @@
 #define FLASH_ADDR 0x00008500
 
 // Len in bytes of the test buffer, 1kB
-#define MAX_TEST_BUF_LEN 5 // 1024 MAX POSSIBLE
+#define MAX_TEST_BUF_LEN 1024 // From 1 to 1024
 
 // End buffer
 uint32_t flash_data_32[MAX_TEST_BUF_LEN];
@@ -68,10 +68,14 @@ int main(int argc, char *argv[]) {
     // Init timer
     timer_0_1_reg = init_timer();
 
+    // Not required anymore, keeping it for compatibility
     uint8_t *test_buffer = flash_original_32;
     uint8_t *flash_data = flash_data_32;
 
-    printf("Start profile routine - standard speed...\n\r");
+    uint32_t *test_buffer_check = flash_original_32;
+    uint32_t *flash_data_check = flash_data_32;
+
+    printf("Start profile routine DMA MODE - standard speed...\n\r");
     for (int i = 1; i <= MAX_TEST_BUF_LEN; i++) {
         // Reset timer
         reset_timer(hart_id);
@@ -79,8 +83,8 @@ int main(int argc, char *argv[]) {
         // Start timer
         rv_timer_counter_set_enabled(&timer_0_1, hart_id, kRvTimerEnabled);
 
-        // Write to flash memory at specific address
-        status = w25q128jw_write_standard(FLASH_ADDR, test_buffer, i);
+        // WRITE TO FLASH memory at specific address
+        status = w25q128jw_write_standard_dma(FLASH_ADDR, test_buffer, i);
 
         // Stop timer
         rv_timer_counter_set_enabled(&timer_0_1, hart_id, kRvTimerDisabled);
@@ -100,8 +104,8 @@ int main(int argc, char *argv[]) {
         // Start timer
         rv_timer_counter_set_enabled(&timer_0_1, hart_id, kRvTimerEnabled);
 
-        // Read from flash memory at the same address
-        status = w25q128jw_read_standard(FLASH_ADDR, flash_data, i);
+        // READ FROM FLASH memory at the same address
+        status = w25q128jw_read_standard_dma(FLASH_ADDR, flash_data, i);
         
         // Stop timer
         rv_timer_counter_set_enabled(&timer_0_1, hart_id, kRvTimerDisabled);
@@ -119,15 +123,15 @@ int main(int argc, char *argv[]) {
         uint32_t errors = 0;
         for (int j=0; j < (i%4==0 ? i/4 : i/4+1); j++) {
             if (j < i/4 ) {
-                if(flash_data[j] != test_buffer[j]) {
-                    printf("iteration %u - index@%u : %x != %x(ref)\n\r", i, j, flash_data[j], test_buffer[j]);
+                if(flash_data_check[j] != test_buffer_check[j]) {
+                    printf("iteration %u - index@%u : %x != %x(ref)\n\r", i, j, flash_data_check[j], test_buffer_check[j]);
                     errors++;
                 }
             } else {
                 uint32_t last_bytes = 0;
-                memcpy(&last_bytes, &test_buffer[j], i % 4);
-                if (flash_data[j] != last_bytes) {
-                    printf("iteration %u - index@%u : %x != %x(ref)\n\r", i, j, flash_data[j], last_bytes);
+                memcpy(&last_bytes, &test_buffer_check[j], i % 4);
+                if (flash_data_check[j] != last_bytes) {
+                    printf("iteration %u - index@%u : %x != %x(ref)\n\r", i, j, flash_data_check[j], last_bytes);
                     errors++;
                 }
             }
@@ -136,8 +140,8 @@ int main(int argc, char *argv[]) {
         errors = 0;
     }
 
-
-    printf("\nStart profile routine - quad speed...\n\r");
+    
+    printf("\nStart profile routine DMA MODE- quad speed...\n\r");
     for (int i = 1; i <= MAX_TEST_BUF_LEN; i++) {
         // Reset timer
         reset_timer(hart_id);
@@ -145,8 +149,8 @@ int main(int argc, char *argv[]) {
         // Start timer
         rv_timer_counter_set_enabled(&timer_0_1, hart_id, kRvTimerEnabled);
 
-        // Write to flash memory at specific address
-        status = w25q128jw_write_quad(FLASH_ADDR, test_buffer, i);
+        // WRITE TO FLASH memory at specific address
+        status = w25q128jw_write_quad_dma(FLASH_ADDR, test_buffer, i);
 
         // Stop timer
         rv_timer_counter_set_enabled(&timer_0_1, hart_id, kRvTimerDisabled);
@@ -166,8 +170,8 @@ int main(int argc, char *argv[]) {
         // Start timer
         rv_timer_counter_set_enabled(&timer_0_1, hart_id, kRvTimerEnabled);
 
-        // Read from flash memory at the same address
-        status = w25q128jw_read_quad(FLASH_ADDR, flash_data, i);
+        // READ FROM FLASH memory at the same address
+        status = w25q128jw_read_quad_dma(FLASH_ADDR, flash_data, i);
         
         // Stop timer
         rv_timer_counter_set_enabled(&timer_0_1, hart_id, kRvTimerDisabled);
@@ -185,15 +189,15 @@ int main(int argc, char *argv[]) {
         uint32_t errors = 0;
         for (int j=0; j < (i%4==0 ? i/4 : i/4+1); j++) {
             if (j < i/4 ) {
-                if(flash_data[j] != test_buffer[j]) {
-                    printf("iteration %u - index@%u : %x != %x(ref)\n\r", i, j, flash_data[j], test_buffer[j]);
+                if(flash_data_check[j] != test_buffer_check[j]) {
+                    printf("iteration %u - index@%u : %x != %x(ref)\n\r", i, j, flash_data_check[j], test_buffer_check[j]);
                     errors++;
                 }
             } else {
                 uint32_t last_bytes = 0;
-                memcpy(&last_bytes, &test_buffer[j], i % 4);
-                if (flash_data[j] != last_bytes) {
-                    printf("iteration %u - index@%u : %x != %x(ref)\n\r", i, j, flash_data[j], last_bytes);
+                memcpy(&last_bytes, &test_buffer_check[j], i % 4);
+                if (flash_data_check[j] != last_bytes) {
+                    printf("iteration %u - index@%u : %x != %x(ref)\n\r", i, j, flash_data_check[j], last_bytes);
                     errors++;
                 }
             }

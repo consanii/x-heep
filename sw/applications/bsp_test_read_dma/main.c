@@ -24,7 +24,7 @@
 #include "w25q128jw.h"
 
 // End buffer
-uint8_t flash_data[30];
+uint32_t flash_data[300];
 
 // Test buffers:
 // ----------------
@@ -81,8 +81,8 @@ int main(int argc, char *argv[]) {
     error_codes_t status;
 
     // Select the buffer to read
-    uint32_t *test_buffer = flash_original_30B;
-    uint32_t len = 30;
+    uint32_t *test_buffer = flash_original_768B;
+    uint32_t len = 768;
 
     // Init SPI host and SPI<->Flash bridge parameters 
     status = w25q128jw_init();
