@@ -31,6 +31,9 @@
 #include "rv_plic_regs.h"
 #include "rv_timer_regs.h"
 
+// If set, the profiling will be performed using the DMA controller
+#define DMA_MODE 0
+
 // Flash address to write to (different from the address where the buffer is stored)
 #define FLASH_ADDR 0x00008500
 
@@ -75,7 +78,11 @@ int main(int argc, char *argv[]) {
     uint32_t *test_buffer_check = flash_original_32;
     uint32_t *flash_data_check = flash_data_32;
 
+    #if DMA_MODE
     printf("Start profile routine DMA MODE - standard speed...\n\r");
+    #else
+    printf("Start profile routine NORMAL MODE - standard speed...\n\r");
+    #endif
     for (int i = 1; i <= MAX_TEST_BUF_LEN; i++) {
         // Reset timer
         reset_timer(hart_id);
@@ -84,7 +91,11 @@ int main(int argc, char *argv[]) {
         rv_timer_counter_set_enabled(&timer_0_1, hart_id, kRvTimerEnabled);
 
         // WRITE TO FLASH memory at specific address
+        #if DMA_MODE
         status = w25q128jw_write_standard_dma(FLASH_ADDR, test_buffer, i);
+        #else
+        status = w25q128jw_write_standard(FLASH_ADDR, test_buffer, i);
+        #endif
 
         // Stop timer
         rv_timer_counter_set_enabled(&timer_0_1, hart_id, kRvTimerDisabled);
@@ -105,7 +116,11 @@ int main(int argc, char *argv[]) {
         rv_timer_counter_set_enabled(&timer_0_1, hart_id, kRvTimerEnabled);
 
         // READ FROM FLASH memory at the same address
+        #if DMA_MODE
         status = w25q128jw_read_standard_dma(FLASH_ADDR, flash_data, i);
+        #else
+        status = w25q128jw_read_standard(FLASH_ADDR, flash_data, i);
+        #endif
         
         // Stop timer
         rv_timer_counter_set_enabled(&timer_0_1, hart_id, kRvTimerDisabled);
@@ -140,8 +155,12 @@ int main(int argc, char *argv[]) {
         errors = 0;
     }
 
-    
-    printf("\nStart profile routine DMA MODE- quad speed...\n\r");
+
+    #if DMA_MODE
+    printf("\nStart profile routine DMA MODE - quad speed...\n\r");
+    #else
+    printf("\nStart profile routine NORMAL MODE - quad speed...\n\r");
+    #endif
     for (int i = 1; i <= MAX_TEST_BUF_LEN; i++) {
         // Reset timer
         reset_timer(hart_id);
@@ -150,7 +169,11 @@ int main(int argc, char *argv[]) {
         rv_timer_counter_set_enabled(&timer_0_1, hart_id, kRvTimerEnabled);
 
         // WRITE TO FLASH memory at specific address
+        #if DMA_MODE
         status = w25q128jw_write_quad_dma(FLASH_ADDR, test_buffer, i);
+        #else
+        status = w25q128jw_write_quad(FLASH_ADDR, test_buffer, i);
+        #endif
 
         // Stop timer
         rv_timer_counter_set_enabled(&timer_0_1, hart_id, kRvTimerDisabled);
@@ -171,7 +194,11 @@ int main(int argc, char *argv[]) {
         rv_timer_counter_set_enabled(&timer_0_1, hart_id, kRvTimerEnabled);
 
         // READ FROM FLASH memory at the same address
+        #if DMA_MODE
         status = w25q128jw_read_quad_dma(FLASH_ADDR, flash_data, i);
+        #else
+        status = w25q128jw_read_quad(FLASH_ADDR, flash_data, i);
+        #endif
         
         // Stop timer
         rv_timer_counter_set_enabled(&timer_0_1, hart_id, kRvTimerDisabled);
