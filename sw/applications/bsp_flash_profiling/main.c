@@ -1,9 +1,11 @@
 /**
  * @file main.c
- * @brief Simple spi write example using BSP
+ * @brief BSP profiling routine
  *
- * Simple example that read 8 words from memory and checks
- * that the data is correct.
+ * This file execute repeated write and read-back operations on the flash memory.
+ * The operations are performed using the standard and quad speed modes, and using
+ * the DMA controller or not (based on flag). All the operations are checked for
+ * correctness. The profiling is performed using RV_TIMER_AO_START_ADDRESS timer.
  *
 */
 
