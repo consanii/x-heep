@@ -37,6 +37,7 @@
 #include "spi_host.h"
 #include "soc_ctrl.h"
 #include "core_v_mini_mcu.h"
+#include "x-heep.h"
 
 /****************************************************************************/
 /**                                                                        **/
@@ -111,9 +112,12 @@
 */
 #define RX_FIFO_DEPTH 64 * 4
 
-
+/**
+ * @brief If target is PYNQ-Z2, use the flash SPI.
+*/
+#ifdef TARGET_PYNQ_Z2
 #define USE_SPI_FLASH
-#define TARGET_PYNQ_Z2
+#endif
 
 #ifdef __cplusplus
 extern "C" {
