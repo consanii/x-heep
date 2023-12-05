@@ -42,6 +42,12 @@
 /* To manage DMA. */
 #include "dma.h"
 
+/* To get TX and RX FIFO depth */
+#include "spi_host_regs.h"
+
+/* To get the target of the compilation (sim or pynq) */
+#include "x-heep.h"
+
 /****************************************************************************/
 /**                                                                        **/
 /*                        DEFINITIONS AND MACROS                            */
@@ -53,6 +59,13 @@
  * in order to provide the MSB first.
 */
 #define REVERT_24b_ADDR(addr) ((((uint32_t)(addr) & 0xff0000) >> 16) | ((uint32_t)(addr) & 0xff00) | (((uint32_t)(addr) & 0xff) << 16))
+
+/**
+ * @bref If the target is the FPGA, use the SPI FLASH.
+*/
+#ifdef TARGET_PYNQ_Z2
+#define USE_SPI_FLASH
+#endif
 
 /****************************************************************************/
 /**                                                                        **/
@@ -254,7 +267,7 @@ uint8_t w25q128jw_init() {
     flash_power_up();
     // Set QE bit (only FPGA, simulation do not support status registers at all)
     #ifdef TARGET_PYNQ_Z2
-    // if (set_QE_bit() == 0) return FLASH_ERROR; // Error occurred while setting QE bit
+    if (set_QE_bit() == FLASH_ERROR) return FLASH_ERROR; // Error occurred while setting QE bit
     #endif // TARGET_PYNQ_Z2
 
     return FLASH_OK; // Success
@@ -280,8 +293,10 @@ uint8_t w25q128jw_write(uint32_t addr, void *data, uint32_t length, uint8_t eras
     uint32_t dma_avail = dma_is_ready();
 
     // TODO
+    uint8_t status = erase_and_write(addr, data, length);
+    if (status == FLASH_ERROR) printf("Flash error");
 
-    return 0;
+    return FLASH_OK;
 }
 
 uint8_t w25q128jw_read_standard(uint32_t addr, void* data, uint32_t length) {
@@ -323,16 +338,18 @@ uint8_t w25q128jw_read_standard(uint32_t addr, void* data, uint32_t length) {
      * RX FIFO depth. In this case the flag is not set to 0, so the loop will
      * continue until all the data is read.
     */
+    printf("Before data start arriving...\n");
     int flag = 1;
     int to_read = 0;
     int i_start = 0;
     int length_original = length;
     uint32_t *data_32bit = (uint32_t *)data;
     while (flag) {
-        if (length >= RX_FIFO_DEPTH) {
-            spi_set_rx_watermark(&spi, RX_FIFO_DEPTH/4);
-            length -= RX_FIFO_DEPTH;
-            to_read += RX_FIFO_DEPTH;
+        printf("%u \n", length);
+        if (length >= SPI_HOST_PARAM_RX_DEPTH) {
+            spi_set_rx_watermark(&spi, SPI_HOST_PARAM_RX_DEPTH/4);
+            length -= SPI_HOST_PARAM_RX_DEPTH;
+            to_read += SPI_HOST_PARAM_RX_DEPTH;
         }
         else {
             spi_set_rx_watermark(&spi, (length%4==0 ? length/4 : length/4+1));
@@ -346,7 +363,7 @@ uint8_t w25q128jw_read_standard(uint32_t addr, void* data, uint32_t length) {
             spi_read_word(&spi, &data_32bit[i]); // Writes a full word
         }
         // Update the starting index
-        i_start += RX_FIFO_DEPTH/4;
+        i_start += SPI_HOST_PARAM_RX_DEPTH/4;
     }
     // Take into account the extra bytes (if any)
     if (length_original % 4 != 0) {
@@ -355,6 +372,7 @@ uint8_t w25q128jw_read_standard(uint32_t addr, void* data, uint32_t length) {
         memcpy(&data_32bit[length_original/4], &last_word, length%4);
     }
 
+    printf("Flash ok\n");
     return FLASH_OK; // Success
 }
 
@@ -444,7 +462,7 @@ uint8_t w25q128jw_read_standard_dma(uint32_t addr, void *data, uint32_t length) 
     spi_wait_for_ready(&spi);
 
     // Wait for DMA to finish transaction
-    while(!dma_is_ready());
+        while(!dma_is_ready());
 
     return FLASH_OK;
 }
@@ -525,10 +543,10 @@ uint8_t w25q128jw_read_quad(uint32_t addr, void *data, uint32_t length) {
     int length_original = length;
     uint32_t *data_32bit = (uint32_t *)data;
     while (flag) {
-        if (length >= RX_FIFO_DEPTH) {
-            spi_set_rx_watermark(&spi, RX_FIFO_DEPTH/4);
-            length -= RX_FIFO_DEPTH;
-            to_read += RX_FIFO_DEPTH;
+        if (length >= SPI_HOST_PARAM_RX_DEPTH) {
+            spi_set_rx_watermark(&spi, SPI_HOST_PARAM_RX_DEPTH/4);
+            length -= SPI_HOST_PARAM_RX_DEPTH;
+            to_read += SPI_HOST_PARAM_RX_DEPTH;
         }
         else {
             spi_set_rx_watermark(&spi, (length%4==0 ? length/4 : length/4+1));
@@ -542,7 +560,7 @@ uint8_t w25q128jw_read_quad(uint32_t addr, void *data, uint32_t length) {
             spi_read_word(&spi, &data_32bit[i]); // Writes a full word
         }
         // Update the starting index
-        i_start += RX_FIFO_DEPTH/4;
+        i_start += SPI_HOST_PARAM_RX_DEPTH/4;
     }
     // Take into account the extra bytes (if any)
     if (length_original%4 != 0) {
@@ -833,48 +851,86 @@ static void flash_power_up() {
 }
 
 static uint8_t set_QE_bit() {
-    flash_write_enable();
+    spi_set_rx_watermark(&spi,1);
 
-    const uint32_t cmd_set_qe = ((0x02 << 8) | FC_WSR2);
-    spi_write_word(&spi, cmd_set_qe);
-    spi_wait_for_ready(&spi);
-    const uint32_t cmd_set_qe_2 = spi_create_command((spi_command_t){
-        .len        = 1,                 // 2 Bytes
-        .csaat      = false,             // End command
-        .speed      = kSpiSpeedStandard, // Single speed
-        .direction  = kSpiDirTxOnly      // Write only
-    });
-    spi_set_command(&spi, cmd_set_qe_2);
-    spi_wait_for_ready(&spi);
+    // Read Status Register 2
+    const uint32_t reg2_read_cmd = FC_RSR2;
+    spi_write_word(&spi, reg2_read_cmd);
 
-    flash_wait();
-
-    // Read back to check if QE bit is set
-    spi_set_rx_watermark(&spi, 1);
-    uint32_t SR2_data = 0;
-    spi_write_word(&spi, FC_RSR2);
-    spi_wait_for_ready(&spi);
-    const uint32_t cmd_read_qe = spi_create_command((spi_command_t){
-        .len        = 0,                 // 1 Bytes
+    const uint32_t reg2_read_1 = spi_create_command((spi_command_t){
+        .len        = 0,                 // 1 Byte
         .csaat      = true,              // Command not finished
         .speed      = kSpiSpeedStandard, // Single speed
         .direction  = kSpiDirTxOnly      // Write only
     });
-    spi_set_command(&spi, cmd_read_qe);
+    spi_set_command(&spi, reg2_read_1);
     spi_wait_for_ready(&spi);
-    const uint32_t cmd_read_qe_2 = spi_create_command((spi_command_t){
-        .len        = 0,                 // 1 Bytes
+
+    const uint32_t reg2_read_2 = spi_create_command((spi_command_t){
+        .len        = 0,                 // 1 Byte
         .csaat      = false,             // End command
-        .speed      = kSpiSpeedStandard, // Single speed
+        .speed      = kSpiSpeedStandard, // Standard speed
         .direction  = kSpiDirRxOnly      // Read only
     });
-    spi_set_command(&spi, cmd_read_qe_2);
+    spi_set_command(&spi, reg2_read_2);
     spi_wait_for_ready(&spi);
     spi_wait_for_rx_watermark(&spi);
-    spi_read_word(&spi, &SR2_data);
-    if ((SR2_data & 0x02) != 0x02) return FLASH_ERROR; // Error: failed to set QE bit
+    
+    /* 
+     * the partial word will be zero-padded and inserted into the RX FIFO once the segment is completed
+     * The actual register is 8 bit, but the SPI host gives a full word
+    */
+    uint32_t reg2_data;
+    spi_read_word(&spi, &reg2_data);
 
-    return 1; // Success
+    // Set bit in position 1 (QE bit), leaving the others unchanged
+    reg2_data |= 0x2;
+
+    // Enable write operation
+    flash_write_enable();
+
+    // Write Status Register 2 (set QE bit)
+    const uint32_t reg2_write_cmd = FC_WSR2;
+    spi_write_word(&spi, reg2_write_cmd);
+
+    const uint32_t reg2_write_1 = spi_create_command((spi_command_t){
+        .len        = 0,                 // 1 Byte
+        .csaat      = true,              // Command not finished
+        .speed      = kSpiSpeedStandard, // Single speed
+        .direction  = kSpiDirTxOnly      // Write only
+    });
+    spi_set_command(&spi, reg2_write_1);
+    spi_wait_for_ready(&spi);
+
+    // Load data to TX FIFO
+    spi_write_word(&spi, reg2_data);
+
+    // Create command segment
+    const uint32_t reg2_write_2 = spi_create_command((spi_command_t){
+        .len        = 0,                 // 1 Byte
+        .csaat      = false,             // End command
+        .speed      = kSpiSpeedStandard, // Standard speed
+        .direction  = kSpiDirTxOnly      // Write only
+    });
+    spi_set_command(&spi, reg2_write_2);
+    spi_wait_for_ready(&spi);
+
+    // Wait flash to complete write routine
+    flash_wait();
+    
+    // Read back Status Register 2
+    spi_write_word(&spi, reg2_read_cmd);
+    spi_set_command(&spi, reg2_read_1);
+    spi_wait_for_ready(&spi);
+    spi_set_command(&spi, reg2_read_2);
+    spi_wait_for_ready(&spi);
+    spi_wait_for_rx_watermark(&spi);
+    uint32_t reg2_data_check = 0x00;
+    spi_read_word(&spi, &reg2_data_check);
+
+    // Check if the QE bit is set
+    if ((reg2_data_check & 0x2) == 0) return FLASH_ERROR;
+    else return FLASH_OK;
 }
 
 static void configure_spi(soc_ctrl_t soc_ctrl) {
@@ -952,36 +1008,47 @@ static void flash_reset() {
     spi_wait_for_ready(&spi);
 }
 
+/*
+ * TODO: update calls to read and write functions
+*/
 uint8_t erase_and_write(uint32_t addr, uint8_t *data, uint32_t length) {
-    // Sanity checks
-    if (sanity_checks(addr, data, length) == 0) return FLASH_ERROR;
+    printf("Erase and write\n");
 
     uint32_t remaining_length = length;
     uint32_t current_addr = addr;
     uint8_t *current_data = data;
 
-    // Allocate a buffer to store the sector data
+    // Allocate a buffer (of 4kB) to store the sector data
     uint8_t *sector_data = (uint8_t *)malloc(4096);
     if (sector_data == NULL) return FLASH_ERROR;
+    printf("Allocated sector data buffer\n");
 
     while (remaining_length > 0) {
-        // Start address of the sector to erase
+        // Start address of the sector to erase, 4kB aligned
         uint32_t sector_start_addr = current_addr & 0xfffff000;
 
         // Read the full sector and save it into RAM
-        w25q128jw_read(sector_start_addr, sector_data, 4096);
+        printf("Read sector %x\n", sector_start_addr);
+        w25q128jw_read_standard(sector_start_addr, sector_data, 4096);
+        printf("Read sector end\n", sector_start_addr);
 
-        // Erase the sector
+        // Erase the sector (no need to do so in simulation)
+        #ifdef TARGET_PYNQ_Z2
         w25q128jw_4k_erase(sector_start_addr);
+        #endif // TARGET_PYNQ_Z2
 
         // Calculate the length of data to write in this sector
         uint32_t write_length = MIN(4096 - (current_addr - sector_start_addr), remaining_length);
+        printf("Remaining length: %d\n", remaining_length);
+        printf("Other term: %d\n", 4096 - (current_addr - sector_start_addr));
+        printf("Write length: %d\n", write_length);
 
         // Modify the data in RAM to include the new data
         memcpy(&sector_data[current_addr - sector_start_addr], current_data, write_length);
 
         // Write the modified data back to the flash (without erasing this time)
-        w25q128jw_write(sector_start_addr, sector_data, 4096, 0);
+        w25q128jw_write_standard(sector_start_addr, sector_data, 4096);
+        printf("Wrote sector %x\n", sector_start_addr);
 
         // Update the remaining length, address and data pointer
         remaining_length -= write_length;
